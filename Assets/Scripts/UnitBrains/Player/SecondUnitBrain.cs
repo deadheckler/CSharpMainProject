@@ -1,12 +1,11 @@
 ﻿using System.Collections.Generic;
-using System.ComponentModel;
 using System.Numerics;
 using Model;
 using Model.Runtime.Projectiles;
-using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Utilities;
+using static UnityEngine.GraphicsBuffer;
 
 namespace UnitBrains.Player
 {
@@ -40,97 +39,54 @@ namespace UnitBrains.Player
         }
 
         public override Vector2Int GetNextStep()
-        { 
-            List<Vector2Int> targets = SelectTargets();
-
-            Vector2Int unitPos = unit.Pos;
-            Vector2Int nextTarget = new Vector2Int(0, 0);
-            if (targets.Count > 0)
-            { 
-                foreach (var target in targets)
-                {
-                    if (IsTargetInRange(target))
-                    {
-                        return unit.Pos;
-                    }
-                    else
-                    {
-                        nextTarget = target;
-                    }
-                }
+        {
+            if (IsTargetInRange(unreachebleTargets[0]))
+            {
+                return unit.Pos;
             }
             else
             {
-                int playerId = IsPlayerUnitBrain ? RuntimeModel.PlayerId : RuntimeModel.BotPlayerId;
-                Vector2Int enemyBase = runtimeModel.RoMap.Bases[playerId];
-                if (IsTargetInRange(enemyBase))
-                {
-                    return unit.Pos;
-                }
-                else
-                {
-                    unreachebleTargets.Add(enemyBase);
-                    nextTarget = enemyBase;
-                }
+                return unit.Pos.CalcNextStepTowards(unreachebleTargets[0]);
             }
-
-            return unitPos.CalcNextStepTowards(nextTarget);
         }
 
         protected override List<Vector2Int> SelectTargets()
         {
             Vector2Int minVector = new Vector2Int(0, 0);
-            float min = float.MaxValue;
+            float max = float.MaxValue;
 
+            List<Vector2Int> result = GetReachableTargets();
             unreachebleTargets = new();
-
+ 
             foreach (Vector2Int vector in GetAllTargets())
             {
                 float distanseToOwnBase = DistanceToOwnBase(vector);
-                if (min > distanseToOwnBase) 
+                if (max > distanseToOwnBase) 
                 {
-                    min = distanseToOwnBase;
+                    max = distanseToOwnBase;
                     minVector = vector;
                 }
             }
 
-            if (min != float.MaxValue)
-            {
-                unreachebleTargets.Add(minVector);
-            }
-
-            return unreachebleTargets;
-            /***
-            if (max != float.MaxValue)
-            {
-                if (IsTargetInRange(minVector))
-                {
-                    result.Add(minVector);
-                    return result;
-                }
-                else
-                {
-                    unreachebleTargets.Add(minVector);
-                    return unreachebleTargets;
-                }
-
-            }
-            else
+            if (max == float.MaxValue)
             {
                 int playerId = IsPlayerUnitBrain ? RuntimeModel.PlayerId : RuntimeModel.BotPlayerId;
                 Vector2Int enemyBase = runtimeModel.RoMap.Bases[playerId];
-                if (IsTargetInRange(enemyBase))
-                {
-                    result.Add(enemyBase);
-                    return result;
-                }
-                else
-                {
-                    unreachebleTargets.Add(enemyBase);
-                    return unreachebleTargets;
-                }
+                minVector = enemyBase;
             }
-            ***/
+
+            if (result.Contains(minVector))
+            {
+                result.Clear();
+                result.Add(minVector);
+            }
+            else
+            {
+                unreachebleTargets.Add(minVector);
+                GetNextStep();
+            }
+
+            return result;
         }
 
         public override void Update(float deltaTime, float time)
